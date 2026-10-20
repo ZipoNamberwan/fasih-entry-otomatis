@@ -1,0 +1,138 @@
+FASIH ENTRY OTOMATIS - PANDUAN
+==============================
+
+Script ini memperbaiki isian KBLI di FASIH (Sensus Ekonomi 2026) secara otomatis
+berdasarkan file Excel, menulis catatan (remark), lalu mengirim (Kirim) assignment.
+
+Tidak perlu instal apa pun. Saat pertama kali dijalankan, Python dan browser
+(Camoufox) diunduh dan dipasang otomatis di dalam folder ini.
+
+
+ISI FOLDER
+----------
+  jalankan_kbli.bat              -> klik dua kali untuk menjalankan script KBLI
+  kbli.py                        -> script perbaikan KBLI
+  input\kbli\                    -> taruh file Excel KBLI di sini (SATU file saja)
+  requirements.txt               -> daftar paket Python yang dipasang otomatis
+  python\                        -> Python, dibuat otomatis saat pertama kali
+                                    dijalankan, dipakai semua script
+  browser\                       -> browser Camoufox, dibuat otomatis saat pertama
+                                    kali dijalankan, dipakai semua script
+  (python\ dan browser\ tidak perlu ikut dibagikan)
+
+
+CARA PAKAI
+----------
+1. Ekstrak zip ke folder mana saja (misalnya Desktop).
+2. Taruh file Excel perbaikan ke folder "input\kbli". Hanya boleh ada SATU file .xlsx.
+3. Tutup file Excel tersebut kalau sedang dibuka.
+4. Klik dua kali "jalankan_kbli.bat".
+   PERTAMA KALI SAJA: Python, paket, dan browser Camoufox diunduh dulu
+   (total sekitar 650 MB, butuh internet dan sekitar 2 GB ruang kosong di disk,
+   biasanya 5-10 menit). Tunggu sampai selesai.
+   Jika gagal, cek internet dan ruang disk, lalu jalankan lagi.
+   Berikutnya semuanya langsung dipakai tanpa mengunduh lagi.
+   Butuh Windows 10/11 (memakai curl dan tar bawaan Windows).
+5. Browser akan terbuka. LOGIN FASIH DI BROWSER seperti biasa:
+   selesaikan captcha jika ada, lalu isi username, password, dan OTP.
+   Login TIDAK diketik di jendela hitam; jendela hitam hanya menampilkan proses.
+6. Setelah login berhasil (muncul daftar survei), script lanjut otomatis.
+   Batas waktu login 15 menit; jika lewat, jalankan lagi.
+7. Biarkan script berjalan. Jangan klik-klik di browser selama proses.
+   Browser boleh ditaruh di belakang jendela lain. Jika browser di-minimize,
+   script akan memunculkannya kembali (di belakang jendela lain) supaya
+   tetap berjalan.
+8. Setelah selesai, buka file Excel dan lihat kolom "hasil" dan "pesan".
+
+
+FORMAT EXCEL
+------------
+Template Excel disediakan oleh Mas Ayis. Gunakan template tersebut:
+  - Baris 1 : judul kelompok (PERBAIKAN, CATATAN, ...)
+  - Baris 2 : nama kolom
+  - Baris 3 dst : data, satu baris = satu assignment
+
+Kolom yang dipakai script:
+  assignment_id    ID assignment FASIH
+  kbli_keg_utama   isian 13a, untuk mencari usaha yang benar
+  PERBAIKAN        13b1, 13b2, 13b3, 13b4jasa, 13b4pertanian, kat_kbli
+                   - 13b1/13b2/13b3: 1 = Ya, 2 = Tidak
+                   - 13b4jasa diisi apa saja -> pilih "1. Jasa"
+                   - 13b4pertanian diisi apa saja -> pilih "2. Pertanian, ..."
+                   - kat_kbli: kode KBLI 5 digit (dipilih di "Pilih dari Master KBLI")
+  CATATAN          9a, 13b1, 13b2, 13b3, 13b4jasa, 13b4pertanian, kat_kbli
+                   - teks yang ditulis sebagai catatan di pertanyaan tersebut
+                   - catatan kat_kbli ditulis di "Pilih dari Master KBLI"
+Sel kosong = tidak diubah. Urutan dan nama kolom jangan diubah.
+
+
+YANG DILAKUKAN SCRIPT PER BARIS
+-------------------------------
+1. Buka assignment, masuk mode Edit.
+2. Buka Blok II, cari usaha yang 13a-nya sama dengan kbli_keg_utama.
+3. Isi kolom PERBAIKAN.
+4. Tulis catatan dari kolom CATATAN.
+   (Catatan untuk pertanyaan yang tidak tampil karena skip rule, misalnya
+   13b4 saat 13b1 = Ya, dilewati.)
+5. Buka bagian CATATAN, aktifkan "Tampilkan Anomali Usaha dan Keluarga".
+6. Klik Kirim. Jika GALAT = 0, script mengirim dan konfirmasi.
+   Jika masih ada GALAT, script TIDAK mengirim dan lanjut ke baris berikutnya.
+
+
+KOLOM HASIL DAN PESAN
+---------------------
+Script menambahkan dua kolom di ujung kanan Excel:
+  hasil = sukses  -> sudah terkirim, tidak akan diproses lagi
+  hasil = gagal   -> belum terkirim, alasan ada di kolom "pesan"
+  hasil kosong    -> belum diproses
+
+Jika script dijalankan lagi, hanya baris "gagal" dan yang masih kosong yang diproses.
+
+Pesan yang sering muncul:
+  "kena error validasi, silakan cek kembali isiannya"
+      Ada GALAT di form. Buka assignment, perbaiki manual, lalu Kirim manual
+      (atau ubah isian Excel dan jalankan lagi).
+  "tidak ada usaha dengan 13a = ..."
+      Isian kbli_keg_utama tidak sama dengan 13a di FASIH. Cek ejaannya.
+  "Timeout ... exceeded"
+      FASIH lambat atau sedang gangguan. Jalankan lagi nanti.
+
+
+CATATAN PENTING
+---------------
+- Perubahan di FASIH hanya tersimpan setelah Kirim. Baris "gagal" tidak
+  menyimpan apa pun di FASIH.
+- Jika baris "gagal" dijalankan ulang, catatan yang sempat ditulis sebelumnya
+  tidak ikut tersimpan (karena belum dikirim), jadi tidak dobel.
+- Jangan ubah isi kolom "hasil" menjadi kosong untuk baris yang sudah sukses,
+  karena script akan mengirim ulang dan catatannya jadi dobel.
+- Jika muncul pesan "sedang dibuka di Excel", tutup file Excel lalu tekan Enter.
+- Jika browser ditutup di tengah proses, script berhenti. Baris yang sedang
+  diproses dan sisanya tetap kosong, jadi akan diproses lagi saat dijalankan ulang.
+- Setiap kali script dijalankan, salinan Excel sebelum diproses disimpan di
+  input\kbli\backup\ (nama file + tanggal-jam). Boleh dihapus jika tidak perlu.
+- Login dilakukan sendiri di browser setiap kali script dijalankan. Script tidak
+  pernah melihat atau menyimpan username, password, maupun OTP.
+
+
+UNTUK PENGELOLA SCRIPT
+----------------------
+- Update script: cukup ganti file kbli.py.
+- Menambah script baru (misalnya "xxx"):
+    1. taruh xxx.py di folder ini,
+    2. salin jalankan_kbli.bat lalu ganti namanya menjadi jalankan_xxx.bat
+       (isi file .bat tidak perlu diubah; nama script diambil dari nama file .bat),
+    3. buat folder input\xxx\ untuk file Excel-nya.
+  Python dan browser di python\ dan browser\ dipakai bersama.
+- Jeda pemilihan KBLI bisa diatur di bagian atas kbli.py:
+  KBLI_TYPE_DELAY, KBLI_HOVER_DELAY, KBLI_CLICK_DELAY (milidetik).
+- Survey period sudah ditetapkan di ASSIGNMENT_URL (Sensus Ekonomi 2026).
+- Versi yang sudah diuji dikunci:
+    Python   : PYTHON_VERSION di jalankan_kbli.bat (saat ini 3.13.1)
+    Browser  : BROWSER_VERSION di jalankan_kbli.bat (saat ini official/152.0.4-beta.30)
+    Paket    : requirements.txt
+  Jika salah satu suatu saat tidak bisa diunduh lagi, ganti versinya lalu uji ulang.
+  Setelah mengubah requirements.txt, hapus folder python\ supaya dipasang ulang.
+- Yang dibagikan cukup: file .bat, file .py, requirements.txt, PANDUAN.txt, dan
+  folder input\ yang kosong. Jangan ikutkan python\, browser\, file Excel di
+  input\kbli\, maupun folder backup\.

@@ -1,0 +1,12 @@
+# Downloaded automatically by jalankan_*.bat on first run
+python/
+browser/
+
+# Excel data and the backups each run makes
+input/**/*.xlsx
+input/**/backup/
+input/**/*.xlsx.tmp
+~$*
+
+__pycache__/
+*.pyc
