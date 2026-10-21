@@ -53,10 +53,16 @@ QUESTION_VARS = {
     "13b3": "keg_penjualan",
     "13b4jasa": "keg_jasa",
     "13b4pertanian": "keg_jasa",
+    "13c": "lokasi_usaha",
+    "13d": "input",
+    "13e": "proses",
     "kat_kbli": "kbli",
 }
-# PERBAIKAN columns, in form order (13b3/13b4 only appear after the earlier answers)
-PERBAIKAN_COLUMNS = ["13b1", "13b2", "13b3", "13b4jasa", "13b4pertanian", "kat_kbli"]
+# PERBAIKAN columns, in form order (13b3/13b4/13c/13d/13e only appear after the 13b answers)
+PERBAIKAN_COLUMNS = ["13b1", "13b2", "13b3", "13b4jasa", "13b4pertanian", "13c", "13d", "13e", "kat_kbli"]
+# Free-text questions: 13d "Apa input yang digunakan?", 13e "Bagaimana proses ...?"
+# (seen only with 13b1 = Ya and 13b2 = Tidak)
+TEXT_QUESTIONS = {"13d", "13e"}
 # CATATAN headers repeat the PERBAIKAN names, so pandas suffixes them with ".1"
 CATATAN_COLUMNS = {
     "9a": "9a", "13b1": "13b1.1", "13b2": "13b2.1", "13b3": "13b3.1",
@@ -152,7 +158,8 @@ class ResultSheet:
         backup_dir.mkdir(exist_ok=True)
         shutil.copy2(path, backup_dir / f"{path.stem} {time.strftime('%Y%m%d-%H%M%S')}{path.suffix}")
         self.wb = openpyxl.load_workbook(path)
-        self.ws = self.wb.active
+        # The first sheet holds the rows (read_rows reads the same one)
+        self.ws = self.wb.worksheets[0]
         headers = [c.value for c in self.ws[HEADER_ROW]]
         # Add the two columns at the end the first time the script runs on this file
         self.cols = {}
@@ -235,9 +242,19 @@ def question(page, code):
     return page.locator(f'[id^="{QUESTION_VARS[code]}#"]')
 
 
-def select_radio(page, code, value, tag):
+def wait_question(page, code):
+    """The question, once FASIH shows it; RowFailed when the skip rule hides it
+    (e.g. 9a = 6 hides all of 13b-13e, 13b3/13b4 need the earlier 13b answers)."""
     q = question(page, code)
-    q.wait_for(timeout=10000)  # 13b3/13b4 only appear after the skip rule is met
+    try:
+        q.wait_for(timeout=10000)
+    except Exception:
+        raise RowFailed(f"{code} tidak tampil di FASIH (skip rule, mis. 9a = 6), cek isian Excel")
+    return q
+
+
+def select_radio(page, code, value, tag):
+    q = wait_question(page, code)
     radio = q.locator(f'input[type=radio][value="{value}"]')
     if radio.is_checked():
         print(f"{tag} {code} sudah = {value}")
@@ -246,6 +263,22 @@ def select_radio(page, code, value, tag):
     page.click(f'label[for="{radio.get_attribute("id")}"]')
     expect(radio).to_be_checked()
     print(f"{tag} {code} = {value}")
+
+
+def fill_text(page, code, text, tag):
+    q = wait_question(page, code)
+    box = q.locator("textarea")
+    # FASIH turns the text into capitals, so compare without case
+    if normalize(box.input_value()) == normalize(text):
+        print(f"{tag} {code} sudah = {text}")
+        return
+    # Type for real: FASIH ignores a value that is set in one go (as fill() does)
+    box.click()
+    box.press("Control+a")
+    box.press_sequentially(text, delay=30)
+    box.press("Tab")  # leave the box so FASIH stores the answer
+    expect(box).to_have_value(re.compile(f"^{re.escape(text)}$", re.IGNORECASE))
+    print(f"{tag} {code} = {text}")
 
 
 def select_kbli(page, code_kbli, tag):
@@ -325,6 +358,11 @@ def apply_perbaikan(page, row, tag):
             continue
         if code == "kat_kbli":
             select_kbli(page, value.zfill(5), tag)
+        elif code in TEXT_QUESTIONS:
+            fill_text(page, code, value, tag)
+        elif code == "13c":
+            # 13c options use two-digit values ("05" = 5. Kedai, stan, tenda)
+            select_radio(page, code, value.zfill(2) if value.isdigit() else value, tag)
         elif code in Q13B4_VALUES:
             select_radio(page, code, Q13B4_VALUES[code], tag)
         else:

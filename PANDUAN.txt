@@ -55,10 +55,18 @@ Template Excel disediakan oleh Mas Ayis. Gunakan template tersebut:
 Kolom yang dipakai script:
   assignment_id    ID assignment FASIH
   kbli_keg_utama   isian 13a, untuk mencari usaha yang benar
-  PERBAIKAN        13b1, 13b2, 13b3, 13b4jasa, 13b4pertanian, kat_kbli
+  PERBAIKAN        13b1, 13b2, 13b3, 13b4jasa, 13b4pertanian, 13c, 13d, 13e, kat_kbli
                    - 13b1/13b2/13b3: 1 = Ya, 2 = Tidak
                    - 13b4jasa diisi apa saja -> pilih "1. Jasa"
                    - 13b4pertanian diisi apa saja -> pilih "2. Pertanian, ..."
+                   - 13c: nomor lokasi usaha (misalnya 5 = Kedai, stan, tenda)
+                   - 13d (input) dan 13e (proses): teks bebas. Biasanya hanya
+                     muncul jika 13b1 = Ya dan 13b2 = Tidak.
+                   Pertanyaan 13b-13e bisa disembunyikan FASIH (skip rule),
+                   misalnya jika 9a = 6 (Usaha pertanian) semua 13b-13e tidak
+                   muncul. Ubah 9a secara manual dulu. Jika pertanyaan yang
+                   diisi di Excel tidak muncul, baris ditandai gagal dengan
+                   pesan "... tidak tampil di FASIH (skip rule ...)".
                    - kat_kbli: kode KBLI 5 digit (dipilih di "Pilih dari Master KBLI")
   CATATAN          9a, 13b1, 13b2, 13b3, 13b4jasa, 13b4pertanian, kat_kbli
                    - teks yang ditulis sebagai catatan di pertanyaan tersebut
