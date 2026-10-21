@@ -48,6 +48,9 @@ KEG_UTAMA_COLUMN = "kbli_keg_utama"
 # container with id "<variable>#<row>", e.g. "layanan_mamin#1002".
 QUESTION_VARS = {
     "9a": "jenis_usaha",
+    "9b1": "alamat_usaha_utama",
+    "9b2": "prov_usaha_utama",
+    "9b3": "kab_usaha_utama",
     "13b1": "produk_sendiri",
     "13b2": "layanan_mamin",
     "13b3": "keg_penjualan",
@@ -58,11 +61,16 @@ QUESTION_VARS = {
     "13e": "proses",
     "kat_kbli": "kbli",
 }
-# PERBAIKAN columns, in form order (13b3/13b4/13c/13d/13e only appear after the 13b answers)
-PERBAIKAN_COLUMNS = ["13b1", "13b2", "13b3", "13b4jasa", "13b4pertanian", "13c", "13d", "13e", "kat_kbli"]
-# Free-text questions: 13d "Apa input yang digunakan?", 13e "Bagaimana proses ...?"
-# (seen only with 13b1 = Ya and 13b2 = Tidak)
-TEXT_QUESTIONS = {"13d", "13e"}
+# PERBAIKAN columns, in form order: 9a decides whether 9b (shown for 9a = 6) or 13b-13e
+# (hidden for 9a = 6) appear, and 13b3/13b4/13c/13d/13e depend on the earlier 13b answers
+PERBAIKAN_COLUMNS = ["9a", "9b1", "9b2", "9b3", "13b1", "13b2", "13b3", "13b4jasa", "13b4pertanian",
+                     "13c", "13d", "13e", "kat_kbli"]
+# Excel column for a PERBAIKAN code when it differs from the code: the "PERBAIKAN PERTANIAN"
+# 9a comes after the CATATAN 9a, so pandas names it "9a.1"
+PERBAIKAN_SOURCE = {"9a": "9a.1"}
+# Free-text questions: 9b1 alamat usaha utama, 13d "Apa input yang digunakan?",
+# 13e "Bagaimana proses ...?" (13d/13e seen only with 13b1 = Ya and 13b2 = Tidak)
+TEXT_QUESTIONS = {"9b1", "13d", "13e"}
 # CATATAN headers repeat the PERBAIKAN names, so pandas suffixes them with ".1"
 CATATAN_COLUMNS = {
     "9a": "9a", "13b1": "13b1.1", "13b2": "13b2.1", "13b3": "13b3.1",
@@ -281,16 +289,18 @@ def fill_text(page, code, text, tag):
     print(f"{tag} {code} = {text}")
 
 
-def select_kbli(page, code_kbli, tag):
-    box = question(page, "kat_kbli").locator("textarea")
-    box.wait_for(timeout=10000)
-    # The selected KBLI is shown as the placeholder, e.g. "[G][47249]Perdagangan ..."
-    selected = lambda: f"[{code_kbli}]" in (box.get_attribute("placeholder") or "")
+def select_dropdown(page, code, shown, tag, key=None):
+    """Pick an option in a searchable dropdown (KBLI, provinsi, kabupaten).
+    `shown` is the code FASIH shows in brackets ("[05] BLITAR" -> "05"); it is typed to
+    filter the list. `key` is the option's data-key when it differs (kabupaten: "3505")."""
+    key = key or shown
+    box = wait_question(page, code).locator("textarea")
+    # The selected option is shown as the placeholder, e.g. "[G][47249]Perdagangan ..."
+    selected = lambda: f"[{shown}]" in (box.get_attribute("placeholder") or "")
     if selected():
-        print(f"{tag} kat_kbli sudah = {code_kbli}")
+        print(f"{tag} {code} sudah = {shown}")
         return
-    # Each option carries its code in data-key
-    option = page.locator(f'[role=listbox] [role=option][data-key="{code_kbli}"]')
+    option = page.locator(f'[role=listbox] [role=option][data-key="{key}"]')
     # FASIH selects on pointerdown, and pressing an already-selected option clears the
     # field ("Pilih salah satu..."). So never press a selected option, and retry if the
     # field ended up empty.
@@ -298,16 +308,16 @@ def select_kbli(page, code_kbli, tag):
         box.click()
         box.fill("")  # on a retry the box may still hold the previous search text
         # Type key by key so the combobox filters exactly like manual typing
-        box.press_sequentially(code_kbli, delay=100)
+        box.press_sequentially(shown, delay=100)
         # Give the list time to filter on the typed code before picking an option
         page.wait_for_timeout(KBLI_TYPE_DELAY)
         try:
             option.wait_for(timeout=10000)
         except Exception:
-            shown = page.locator("[role=listbox] [role=option]").evaluate_all(
+            shown_keys = page.locator("[role=listbox] [role=option]").evaluate_all(
                 "els => els.map(e => e.getAttribute('data-key'))"
             )
-            raise RuntimeError(f"Opsi KBLI {code_kbli} tidak muncul (diketik: '{box.input_value()}', opsi: {shown})")
+            raise RuntimeError(f"Opsi {code} {key} tidak muncul (diketik: '{box.input_value()}', opsi: {shown_keys})")
         # Hover first, pause, then click, pause, so the list is settled at every step
         option.hover()
         page.wait_for_timeout(KBLI_HOVER_DELAY)
@@ -315,12 +325,12 @@ def select_kbli(page, code_kbli, tag):
             option.click()
             page.wait_for_timeout(KBLI_CLICK_DELAY)
         try:
-            expect(box).to_have_attribute("placeholder", re.compile(re.escape(f"[{code_kbli}]")), timeout=3000)
+            expect(box).to_have_attribute("placeholder", re.compile(re.escape(f"[{shown}]")), timeout=3000)
             break
         except AssertionError:
-            print(f"{tag} kat_kbli percobaan {attempt} gagal (terisi: '{box.get_attribute('placeholder')}'), ulangi...")
+            print(f"{tag} {code} percobaan {attempt} gagal (terisi: '{box.get_attribute('placeholder')}'), ulangi...")
     if not selected():
-        raise RuntimeError(f"kat_kbli gagal diisi {code_kbli}")
+        raise RuntimeError(f"{code} gagal diisi {shown}")
     # The dropdown sometimes stays open after selecting; it is also a [role=dialog]
     # and would get in the way of the Catatan dialog. Escape closes it and keeps the value.
     listbox = page.locator("[role=listbox]")
@@ -330,7 +340,21 @@ def select_kbli(page, code_kbli, tag):
             listbox.wait_for(state="detached", timeout=2000)
         except Exception:
             pass  # still closing; the Catatan step picks its own dialog anyway
-    print(f"{tag} kat_kbli = {code_kbli}")
+    print(f"{tag} {code} = {shown}")
+
+
+def select_kabupaten(page, value, provinsi, tag):
+    """9b3 options are keyed by province + kabupaten ("3505") but show only "[05]"."""
+    if len(value) == 4:
+        provinsi, value = value[:2], value[2:]
+    if not provinsi:
+        # Use the province already selected in 9b2, e.g. "[35] JAWA TIMUR"
+        placeholder = wait_question(page, "9b2").locator("textarea").get_attribute("placeholder") or ""
+        match = re.match(r"\[(\d+)\]", placeholder)
+        if not match:
+            raise RowFailed("9b3 butuh provinsi: isi 9b2 di Excel")
+        provinsi = match.group(1)
+    select_dropdown(page, "9b3", value.zfill(2), tag, key=provinsi + value.zfill(2))
 
 
 def add_catatan(page, code, text, tag):
@@ -353,11 +377,16 @@ def add_catatan(page, code, text, tag):
 
 def apply_perbaikan(page, row, tag):
     for code in PERBAIKAN_COLUMNS:
-        value = cell(row, code)
+        value = cell(row, PERBAIKAN_SOURCE.get(code, code))
         if value is None:
             continue
         if code == "kat_kbli":
-            select_kbli(page, value.zfill(5), tag)
+            select_dropdown(page, code, value.zfill(5), tag)
+        elif code == "9b2":
+            select_dropdown(page, code, value.zfill(2), tag)
+        elif code == "9b3":
+            provinsi = cell(row, "9b2")
+            select_kabupaten(page, value, provinsi.zfill(2) if provinsi else None, tag)
         elif code in TEXT_QUESTIONS:
             fill_text(page, code, value, tag)
         elif code == "13c":
